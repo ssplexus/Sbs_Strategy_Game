@@ -10,7 +10,8 @@ public class Main
         Scanner scanner = new Scanner(System.in);
 
         // Параметр значения команды пользователя
-        int command;
+        // значение 2 означает replay, то есть переход к выбору режима игры
+        int command = 2;
 
         // Параметр хранения порядкового номера целевого югита (из не уничтоженных)
         int targetUnitNum = 0;
@@ -18,40 +19,60 @@ public class Main
         int actionNum;
 
         // Текущий игрок
-        Player currentPlayer;
-
-        /*
-        Создание игроков и назначение им друг друга в качестве соперников
-         */
-        Player player = new Player("Player");
-        Player enemy = new Player("Enemy Player", true); // назначаем игрока enemy как CPU
-        player.setEnemyPlayer(enemy);
-        enemy.setEnemyPlayer(player);
-
-        // Назначение текущего игрока
-        currentPlayer = player;
+        Player currentPlayer = null;
+        Player player = null;
+        Player enemy = null;
 
         // Основной цикл игры
         while (true)
         {
-            // Вывод доступных юнитов игроков
-            System.out.println("====================================================");
-            System.out.println(player);
-            System.out.println(enemy);
-            System.out.println("====================================================");
-            System.out.println("Enter any key to continue");
-            scanner.nextInt();
-            
-            System.out.println(String.format("%s's turn", currentPlayer.getName()));
+            if(currentPlayer != null && player != null && enemy != null)
+            {
+                // Вывод доступных юнитов игроков
+                System.out.println("====================================================");
+                System.out.println(player);
+                System.out.println(enemy);
+                System.out.println("====================================================");
+                System.out.println("Enter any key to continue");
+                scanner.nextInt();
 
-            command = getPlayerCommand(currentPlayer); // Получить команду от текущего игрока
+                System.out.println(String.format("%s's turn", currentPlayer.getName()));
+            }
+
+            if(currentPlayer != null) command = getPlayerCommand(currentPlayer); // Получить команду от текущего игрока
             if(command == 0) break; // если 0 то выход из игры
-            else if (command == 2) // если команда на перезапуск
+            if (command == 2) // если команда на перезапуск
             {
                 // Запуск нового цикла игры
 
-                player = new Player("unit.classes.Player");
-                enemy = new Player("Enemy unit.classes.Player", true);
+                do
+                {
+                    System.out.println("""
+                                   Game mode:
+                                   0 - 'exit game'
+                                   1 - 'player vs player'
+                                   2 - 'player vs cpu'
+                                   """);
+                    // Проверка корректности ввода команды
+
+                    while (!scanner.hasNextInt())
+                    {
+                        System.out.println("It's not an integer!");
+                        System.out.println("Enter command:");
+                        scanner.next();
+                    }
+                    command = scanner.nextInt();
+                    if(command <= 2 && command >= 0) break;
+                    System.out.println("Incorrect!");
+                }while (true);
+
+                if(command == 0) break; // если 0 то выход из игры
+                /*
+                Создание игроков и назначение им друг друга в качестве соперников
+                */
+
+                player = new Player(command == 2 ? "Player" : "Player_1");
+                enemy = new Player(command == 2 ? "Enemy Player" : "Player_2", command == 2 ? true : false);
                 player.setEnemyPlayer(enemy);
                 enemy.setEnemyPlayer(player);
 
@@ -62,42 +83,47 @@ public class Main
             System.out.println();
 
             // Взять под контроль юнит текущим игроком
-            if(takeControlUnit(currentPlayer) == 0) break; // если возвращён 0, то выход
-
-            // Получить действие для выбранного юнита от текущего игрока
-            actionNum = getPlayerAction(currentPlayer);
-            if(actionNum == 0) break; // если 0, то выход из игры
-
-            if(actionNum == 1)  // Если атака или лечение то необходимо получить целевой юнит
+            if(takeControlUnit(currentPlayer) != 0) // если 0 пропуск хода
             {
-                targetUnitNum = getPlayerTarget(currentPlayer); // получить целевой юнит
-                if(targetUnitNum == 0) break; // если 0, то выход из игры
+                // Получить действие для выбранного юнита от текущего игрока
+                actionNum = getPlayerAction(currentPlayer);
+                if(actionNum != 0) // если 0 пропуск хода
+                {
+                    // Если атака или лечение то необходимо получить целевой юнит
+                    if(actionNum == 1) targetUnitNum = getPlayerTarget(currentPlayer); // получить целевой юнит
+
+                    if(actionNum == 1 && targetUnitNum == 0)
+                        System.out.println("Skip turn");
+                    else
+                    {
+                        // Передаём контроллеру действие и цель и выполняем действие
+
+                        currentPlayer.getController().setAction(actionNum);
+                        currentPlayer.getController().setTargetUnitNum(targetUnitNum);
+                        currentPlayer.getController().makeAction();
+                    }
+                }
+                else System.out.println("Skip turn");
             }
+            else System.out.println("Skip turn");
 
-            // Передаём контроллеру действие и цель и выполняем действие
-
-            currentPlayer.getController().setAction(actionNum);
-            currentPlayer.getController().setTargetUnitNum(targetUnitNum);
-            currentPlayer.getController().makeAction();
+            currentPlayer = currentPlayer == player ? enemy : player; // Меняем текущего игрока
 
             // Проверка победителя игры, если у игрока не осталось действующих юнитов то он проиграл
             if(currentPlayer.getAvailibleUnitsCount() == 0)
             {
                 System.out.println();
-                System.out.println(String.format("%s win the game!", currentPlayer.getName()));
+                System.out.println(String.format("%s win the game!", (currentPlayer == player ? enemy : player).getName()));
                 System.out.println("GAME OVER");
 
                 //Запуск нового цикла игры
 
-                player = new Player("unit.classes.Player");
-                enemy = new Player("Enemy unit.classes.Player", true);
-                player.setEnemyPlayer(enemy);
-                enemy.setEnemyPlayer(player);
+                player = null;
+                enemy = null;
+                currentPlayer = null;
 
-                currentPlayer = player;
+                command = 2;
             }
-            else
-                currentPlayer = currentPlayer == player ? enemy : player; // Меняем текущего игрока
         }
     }
 
@@ -156,7 +182,7 @@ public class Main
                 // Проверка корректности выбора юнита
 
                 Scanner scanner = new Scanner(System.in);
-                System.out.println("Select unit (0 for exit game):");
+                System.out.println("Select unit (0 for skip turn):");
                 System.out.println(player); // дотсупные юниты игрока
                 while (!scanner.hasNextInt())
                 {
@@ -206,7 +232,7 @@ public class Main
             {
                 // Проверка корректности ввода
 
-                System.out.println("Select action (0 for exit game):");
+                System.out.println("Select action (0 for skip turn):");
                 // Вывод возможных действий для текущего юнита
                 System.out.println(player.getController().getAvailibleActions());
                 while (!scanner.hasNextInt())
@@ -242,7 +268,7 @@ public class Main
                 // Проверка корректности ввода
 
                 Scanner scanner = new Scanner(System.in);
-                System.out.println("Select target unit (0 for exit game):");
+                System.out.println("Select target unit (0 for skip turn):");
                 /* Вывод доступных юнитов,
                    для атаки - юниты противника
                    для лечения - юниты текущего игрока
@@ -268,7 +294,7 @@ public class Main
             // Компьютер выбирает цель случайным образом
 
             Random random = new Random();
-            targetUnitNum = random.nextInt(player.getAvailibleUnitsCount()) + 1;
+            targetUnitNum = random.nextInt(player.getController().getTargetUnits().split(",").length) + 1;
         }
         return targetUnitNum;
     }
